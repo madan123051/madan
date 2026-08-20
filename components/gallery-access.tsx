@@ -185,10 +185,8 @@ export function GalleryAccess({ config, compact = false }: GalleryAccessProps) {
     setMessage(`Starting ${chosenPhotos.length} download${chosenPhotos.length === 1 ? "" : "s"}...`);
     for (const photo of chosenPhotos) {
       const link = document.createElement("a");
-      link.href = photo.downloadUrl || photo.url;
+      link.href = `/api/download?code=${encodeURIComponent(normalizeCode(accessCode))}&photoId=${encodeURIComponent(photo.id)}`;
       link.download = photo.filename;
-      link.target = "_blank";
-      link.rel = "noreferrer";
       document.body.append(link);
       link.click();
       link.remove();
