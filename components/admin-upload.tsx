@@ -8,7 +8,6 @@ import {
   signOut,
   type User,
 } from "firebase/auth";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { enableFirebaseAnalytics, getFirebaseServices } from "@/lib/firebase-client";
 import type { FirebaseBrowserConfig } from "@/lib/firebase-config";
 
@@ -175,6 +174,64 @@ async function adminRequest<T>(user: User, init: RequestInit = {}) {
   return payload;
 }
 
+async function uploadAuthenticatedBlob(
+  user: User,
+  config: FirebaseBrowserConfig,
+  path: string,
+  blob: Blob,
+  customMetadata: Record<string, string> = {},
+) {
+  const token = await user.getIdToken();
+  const boundary = `firebase-${crypto.randomUUID()}`;
+  const metadata = JSON.stringify({
+    name: path,
+    contentType: "image/webp",
+    metadata: customMetadata,
+  });
+  const body = new Blob(
+    [
+      `--${boundary}\r\nContent-Type: application/json; charset=utf-8\r\n\r\n${metadata}\r\n`,
+      `--${boundary}\r\nContent-Type: image/webp\r\n\r\n`,
+      blob,
+      `\r\n--${boundary}--`,
+    ],
+    { type: `multipart/related; boundary=${boundary}` },
+  );
+  const endpoint = new URL(
+    `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(config.storageBucket)}/o`,
+  );
+  endpoint.searchParams.set("name", path);
+
+  const response = await withTimeout(
+    fetch(endpoint, {
+      method: "POST",
+      headers: {
+        authorization: `Firebase ${token}`,
+        "content-type": `multipart/related; boundary=${boundary}`,
+        "x-firebase-gmpid": config.appId,
+        "x-goog-upload-protocol": "multipart",
+      },
+      body,
+    }),
+    storageTimeoutMs,
+    `Storage upload timed out for ${path.split("/").at(-1) ?? "image"}.`,
+  );
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    const detail = payload.error?.message || `Storage returned HTTP ${response.status}.`;
+    throw new Error(
+      response.status === 401
+        ? `Firebase rejected the admin login token. Sign out, sign in again, and retry. ${detail}`
+        : detail,
+    );
+  }
+
+  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(config.storageBucket)}/o/${encodeURIComponent(path)}?alt=media`;
+}
+
 function galleryShareLink(code: string) {
   return `${window.location.origin}/gallery?code=${encodeURIComponent(code)}`;
 }
@@ -293,18 +350,19 @@ export function AdminUpload({ config }: AdminUploadProps) {
             updateQueue(item.id, { status: "processing" });
             const processed = await processImage(file, true);
             const path = `galleries/${galleryId}/${Date.now()}-${crypto.randomUUID()}-${processed.filename}`;
-            const storageRef = ref(services.storage, path);
 
             updateQueue(item.id, { status: "uploading" });
-            await withTimeout(
-              uploadBytes(storageRef, processed.blob, {
-                contentType: "image/webp",
-                customMetadata: { capturedBy: "madan.wildsaura.com", galleryId, originalName: processed.originalName },
-              }),
-              storageTimeoutMs,
-              `Storage upload timed out for ${processed.filename}.`,
+            const url = await uploadAuthenticatedBlob(
+              user,
+              config,
+              path,
+              processed.blob,
+              {
+                capturedBy: "madan.wildsaura.com",
+                galleryId,
+                originalName: processed.originalName,
+              },
             );
-            const url = await withTimeout(getDownloadURL(storageRef), 30_000, `Could not get the URL for ${processed.filename}.`);
 
             updateQueue(item.id, { status: "saving" });
             await adminRequest(user, {
@@ -398,9 +456,10 @@ export function AdminUpload({ config }: AdminUploadProps) {
         setMessage(`Preparing hero image ${index + 1} of ${heroFiles.length}...`);
         const processed = await processImage(file, false);
         const path = `hero/${Date.now()}-${crypto.randomUUID()}-${processed.filename}`;
-        const storageRef = ref(services.storage, path);
-        await withTimeout(uploadBytes(storageRef, processed.blob, { contentType: "image/webp" }), storageTimeoutMs, `Hero upload timed out for ${processed.filename}.`);
-        const url = await getDownloadURL(storageRef);
+        const url = await uploadAuthenticatedBlob(user, config, path, processed.blob, {
+          capturedBy: "madan.wildsaura.com",
+          originalName: processed.originalName,
+        });
         nextImages.push({ url, storagePath: path, alt: processed.title });
       }
 
