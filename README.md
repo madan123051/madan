@@ -1,19 +1,20 @@
 # Madan Wilds Aura
 
-Personal photography landing page, private gallery access, and admin upload flow for Madan Shrestha.
+Personal photography landing page, private gallery access, and admin photo
+upload flow for Madan Shrestha.
 
-## What is included
+## Features
 
-- Professional landing page for Madan Wilds Aura.
-- Links to Wilds Aura, Luma, private gallery, admin upload, and contact.
-- Firebase-ready private gallery at `/gallery`.
-- Admin upload flow at `/admin` using Firebase Auth, Firestore, and Storage.
-- Gallery filtering by year, month, event, and country.
-- Select-and-download flow for gallery photos.
+- Professional landing page with Wilds Aura and Luma links.
+- Private gallery route at `/gallery`.
+- Admin upload route at `/admin`.
+- Firebase Authentication, Firestore, Storage, and optional Analytics wiring.
+- Gallery filters by year, month, event, and country.
+- Select-and-download photo flow.
 - Noindex metadata on private gallery and admin pages.
-- Vercel config with `npm install` and `npx next build`.
+- Vercel config that uses `next build`.
 
-## Local setup
+## Local Setup
 
 ```bash
 npm install
@@ -23,14 +24,32 @@ npm run dev
 
 Fill `.env.local` with the Firebase web app values from Firebase Console.
 
-## Vercel setup
+## Firebase Environment Variables
 
-1. Import this repository in Vercel.
-2. Add every `NEXT_PUBLIC_FIREBASE_*` value from `.env.example` in Vercel Project Settings -> Environment Variables.
-3. Deploy. Vercel will run `npm install` and `npx next build`.
+```txt
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
+```
 
-## Firebase setup
+See [docs/firebase-setup.md](docs/firebase-setup.md) for Firestore and Storage
+rules.
 
-See `docs/firebase-setup.md` for Auth, Firestore, and Storage rules.
+## Vercel
 
-Live Sites preview: https://madan-wilds-aura.breezy-knoll-5462.chatgpt.site
+The project includes `vercel.json` so Vercel runs:
+
+```bash
+npx next build
+```
+
+Add the Firebase variables in Vercel Project Settings before deploying.
+
+## Sites
+
+This checkout also supports the ChatGPT Sites/Vinext deployment flow through
+the existing `npm run build` script.

@@ -1,44 +1,53 @@
-const profileImage =
-  "https://madan-wilds-aura.breezy-knoll-5462.chatgpt.site/images/madan-profile.webp";
+import { GalleryAccess } from "@/components/gallery-access";
+import { BrandLogo } from "@/components/brand-logo";
+import { HeroRotator } from "@/components/hero-rotator";
+import { getFirebaseConfigFromEnv } from "@/lib/firebase-config";
+
+export const dynamic = "force-dynamic";
 
 const workLinks = [
   {
     title: "Wilds Aura",
-    eyebrow: "Wildlife and nature",
-    text: "Wildlife photos, bird portraits, macro details, landscapes, stories, and videos.",
+    label: "Wildlife and nature",
+    description:
+      "Conservation-minded wildlife photos, bird portraits, macro details, landscapes, stories, and videos by Madan Shrestha.",
     href: "https://www.wildsaura.com/",
+    cta: "View Wilds Aura",
   },
   {
     title: "Luma Gallery",
-    eyebrow: "Published collections",
-    text: "A refined viewing space for selected photo work and client-facing image stories.",
+    label: "Published collections",
+    description:
+      "A refined viewing space for selected photo work, visual sets, and client-facing image stories from the Wilds Aura world.",
     href: "https://luma.wildsaura.com/",
+    cta: "Open Luma",
   },
   {
     title: "Private Archive",
-    eyebrow: "Event downloads",
-    text: "Protected galleries for events, portraits, travel sets, and download access.",
+    label: "Event downloads",
+    description:
+      "A Firebase-powered private gallery area for events, portraits, travel sets, and protected downloads.",
     href: "/gallery",
+    cta: "Open private gallery",
   },
 ];
 
 const socialLinks = [
-  ["Wilds Aura", "https://www.wildsaura.com/"],
-  ["Luma", "https://luma.wildsaura.com/"],
-  ["Instagram", "#contact"],
-  ["YouTube", "#contact"],
-  ["Contact", "https://www.wildsaura.com/contact"],
-  ["Admin", "/admin"],
+  { label: "Wilds Aura", href: "https://www.wildsaura.com/" },
+  { label: "Luma", href: "https://luma.wildsaura.com/" },
+  { label: "Instagram", href: "#contact" },
+  { label: "YouTube", href: "#contact" },
+  { label: "Contact", href: "https://www.wildsaura.com/contact" },
+  { label: "Admin", href: "/admin" },
 ];
 
 export default function Home() {
+  const firebaseConfig = getFirebaseConfigFromEnv();
+
   return (
     <main>
-      <header className="site-header">
-        <a className="brand-mark" href="#top" aria-label="Madan Wilds Aura home">
-          <span>MW</span>
-          <strong>Madan Wilds Aura</strong>
-        </a>
+      <header className="site-header" aria-label="Primary navigation">
+        <BrandLogo href="#top" />
         <nav className="nav-links" aria-label="Page sections">
           <a href="#work">Work</a>
           <a href="/gallery">Gallery</a>
@@ -47,35 +56,49 @@ export default function Home() {
       </header>
 
       <section id="top" className="hero" aria-label="Madan Shrestha photography">
-        <img
-          className="hero-image"
-          src={profileImage}
-          alt="Portrait of Madan Shrestha, photographer behind Madan Wilds Aura"
-        />
+        <HeroRotator />
         <div className="hero-overlay" aria-hidden="true" />
+
         <div className="hero-content">
           <p className="eyebrow">Photographer and visual storyteller</p>
           <h1>Madan Shrestha</h1>
-          <p>
+          <p className="hero-copy">
             A personal photography home for wildlife, events, portraits, travel
             stories, and private client galleries. Public first impression,
             protected photo access.
           </p>
           <div className="hero-actions">
-            <a className="button primary" href="/gallery">Private gallery access</a>
-            <a className="button ghost" href="#work">Explore my work</a>
+            <a className="button button-primary" href="/gallery">
+              Private gallery access
+            </a>
+            <a className="button button-ghost" href="#work">
+              Explore my work
+            </a>
           </div>
         </div>
-        <aside className="hero-caption">
+
+        <aside className="hero-caption" aria-label="Photo credit">
           <span>Captured by</span>
           <strong>madan.wildsaura.com</strong>
         </aside>
       </section>
 
-      <section className="intro-band">
-        <div><span>01</span><strong>Wildlife storytelling</strong><p>Nature, birds, macro, landscapes, and conservation stories.</p></div>
-        <div><span>02</span><strong>Event archives</strong><p>Organized galleries by date, place, country, and event name.</p></div>
-        <div><span>03</span><strong>Private downloads</strong><p>Shareable links, event codes, and protected download access.</p></div>
+      <section className="intro-band" aria-label="Portfolio focus">
+        <div>
+          <span>01</span>
+          <strong>Wildlife storytelling</strong>
+          <p>Nature, birds, macro, landscapes, and conservation stories.</p>
+        </div>
+        <div>
+          <span>02</span>
+          <strong>Event archives</strong>
+          <p>Organized galleries by date, place, country, and event name.</p>
+        </div>
+        <div>
+          <span>03</span>
+          <strong>Private downloads</strong>
+          <p>Shareable links, event codes, and protected download access.</p>
+        </div>
       </section>
 
       <section id="work" className="section">
@@ -88,19 +111,40 @@ export default function Home() {
             gallery access.
           </p>
         </div>
+
         <div className="work-grid">
           {workLinks.map((item) => (
             <article className="work-card" key={item.title}>
-              <p>{item.eyebrow}</p>
+              <p>{item.label}</p>
               <h3>{item.title}</h3>
-              <span>{item.text}</span>
-              <a href={item.href}>{item.href.startsWith("http") ? "Open" : "Enter"}</a>
+              <span>{item.description}</span>
+              <a
+                href={item.href}
+                target={item.href.startsWith("http") ? "_blank" : undefined}
+                rel={item.href.startsWith("http") ? "noreferrer" : undefined}
+              >
+                {item.cta}
+              </a>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="admin-note">
+      <section id="gallery" className="gallery-section">
+        <div className="gallery-copy">
+          <p className="eyebrow">Private gallery system</p>
+          <h2>Ready for Firebase login, uploads, and event downloads.</h2>
+          <p>
+            Once Firebase is connected, this area can unlock private photo sets
+            with an event code or share link. Visitors will be able to filter
+            by year, month, event, and country, then select photos for download.
+          </p>
+        </div>
+
+        <GalleryAccess config={firebaseConfig} compact />
+      </section>
+
+      <section className="admin-note" aria-label="Admin upload plan">
         <div>
           <p className="eyebrow">Admin-only upload flow</p>
           <h2>Upload once. Organize clearly. Share safely.</h2>
@@ -109,7 +153,7 @@ export default function Home() {
           <li>Admin login for photo uploads and event creation.</li>
           <li>Automatic copyright line under every gallery photo.</li>
           <li>No public Google indexing for private gallery pages.</li>
-          <li>Share by QR code, direct link, or event code.</li>
+          <li>Share by QR code, direct link, or one-time event code.</li>
         </ul>
       </section>
 
@@ -117,10 +161,18 @@ export default function Home() {
         <div>
           <p className="eyebrow">Connect</p>
           <h2>Madan Wilds Aura</h2>
-          <p>Personal photography, wildlife stories, event galleries, and private downloads in one professional home.</p>
+          <p>
+            Personal photography, wildlife stories, event galleries, and private
+            downloads in one calm, professional home.
+          </p>
         </div>
+
         <nav className="footer-links" aria-label="External links">
-          {socialLinks.map(([label, href]) => <a key={label} href={href}>{label}</a>)}
+          {socialLinks.map((link) => (
+            <a key={link.label} href={link.href}>
+              {link.label}
+            </a>
+          ))}
         </nav>
       </footer>
     </main>

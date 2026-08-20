@@ -1,24 +1,33 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AdminClient } from "@/components/AdminClient";
+import { AdminUpload } from "@/components/admin-upload";
+import { BrandLogo } from "@/components/brand-logo";
+import { getFirebaseConfigFromEnv } from "@/lib/firebase-config";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Admin Upload | Madan Wilds Aura",
   description: "Admin-only photo upload for Madan Wilds Aura private galleries.",
-  robots: { index: false, follow: false },
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function AdminPage() {
+  const firebaseConfig = getFirebaseConfigFromEnv();
+
   return (
     <main className="subpage-shell admin-shell">
       <header className="subpage-header">
-        <Link className="brand-mark light" href="/" aria-label="Madan Wilds Aura home">
-          <span>MW</span>
-          <strong>Madan Wilds Aura</strong>
+        <BrandLogo className="light" />
+        <Link className="button button-dark" href="/gallery">
+          Gallery access
         </Link>
-        <Link className="button dark" href="/gallery">Gallery access</Link>
       </header>
-      <AdminClient />
+
+      <AdminUpload config={firebaseConfig} />
     </main>
   );
 }
