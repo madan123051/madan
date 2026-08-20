@@ -315,10 +315,11 @@ export function AdminUpload({ config }: AdminUploadProps) {
 
   async function handleGalleryUpload(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!services || !user) return setMessage("Sign in before uploading.");
+    if (!services || !user || !config) return setMessage("Sign in before uploading.");
     if (!title.trim()) return setMessage("Add an event title.");
     if (files.length === 0) return setMessage("Choose one or more photos.");
 
+    const firebaseConfig = config;
     const galleryTitle = title.trim();
     const galleryId = slugify(`${eventDate || "gallery"}-${galleryTitle}`) || crypto.randomUUID();
     const year = eventDate ? String(new Date(`${eventDate}T00:00:00`).getFullYear()) : "";
@@ -354,7 +355,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
             updateQueue(item.id, { status: "uploading" });
             const url = await uploadAuthenticatedBlob(
               user,
-              config,
+              firebaseConfig,
               path,
               processed.blob,
               {
@@ -444,10 +445,11 @@ export function AdminUpload({ config }: AdminUploadProps) {
   }
 
   async function handleHeroUpload() {
-    if (!services || !user) return setMessage("Sign in before uploading hero images.");
+    if (!services || !user || !config) return setMessage("Sign in before uploading hero images.");
     if (!heroFiles.length) return setMessage("Choose at least one hero image.");
     if (heroImages.length + heroFiles.length > 5) return setMessage(`You can keep up to 5 hero images. Remove ${heroImages.length + heroFiles.length - 5} first.`);
 
+    const firebaseConfig = config;
     setBusy(true);
     const nextImages = [...heroImages];
     try {
@@ -456,7 +458,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
         setMessage(`Preparing hero image ${index + 1} of ${heroFiles.length}...`);
         const processed = await processImage(file, false);
         const path = `hero/${Date.now()}-${crypto.randomUUID()}-${processed.filename}`;
-        const url = await uploadAuthenticatedBlob(user, config, path, processed.blob, {
+        const url = await uploadAuthenticatedBlob(user, firebaseConfig, path, processed.blob, {
           capturedBy: "madan.wildsaura.com",
           originalName: processed.originalName,
         });
