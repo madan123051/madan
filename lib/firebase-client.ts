@@ -2,8 +2,9 @@
 
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getStorage } from "firebase/storage";
 import type { FirebaseBrowserConfig } from "./firebase-config";
+
+const firebaseAppName = "madan-wilds-aura";
 
 export function getFirebaseApp(
   config: FirebaseBrowserConfig | null,
@@ -12,7 +13,10 @@ export function getFirebaseApp(
     return null;
   }
 
-  return getApps()[0] ?? initializeApp(config);
+  return (
+    getApps().find((app) => app.name === firebaseAppName) ??
+    initializeApp(config, firebaseAppName)
+  );
 }
 
 export function getFirebaseServices(config: FirebaseBrowserConfig | null) {
@@ -25,7 +29,6 @@ export function getFirebaseServices(config: FirebaseBrowserConfig | null) {
   return {
     app,
     auth: getAuth(app),
-    storage: getStorage(app),
   };
 }
 
