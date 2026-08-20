@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { CheckCircle2, Download, Filter, KeyRound, LoaderCircle, Share2 } from "lucide-react";
 import { enableFirebaseAnalytics } from "@/lib/firebase-client";
 import type { FirebaseBrowserConfig } from "@/lib/firebase-config";
 import type { GalleryPhoto, GalleryRecord } from "@/lib/gallery-types";
@@ -166,10 +167,26 @@ export function GalleryAccess({ config, compact = false }: GalleryAccessProps) {
     setMessage("Download started.");
   }
 
+  async function shareGallery() {
+    if (!gallery) return setMessage("Unlock a gallery before sharing it.");
+    const url = `${window.location.origin}/gallery?code=${encodeURIComponent(normalizeCode(accessCode))}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: gallery.title, text: "Private gallery by Madan Wilds Aura", url });
+        setMessage("Private gallery link shared.");
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+    await navigator.clipboard.writeText(url);
+    setMessage("Private gallery link copied.");
+  }
+
   return (
     <div className={compact ? "gallery-console" : "gallery-console gallery-console-full"}>
       <div className="console-topbar">
-        <span>{gallery ? gallery.title : "Client access"}</span>
+        <span><KeyRound aria-hidden="true" /> {gallery ? gallery.title : "Client access"}</span>
         <strong>{expiresAt ? `Valid until ${new Date(expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "24-hour codes"}</strong>
       </div>
 
@@ -186,7 +203,7 @@ export function GalleryAccess({ config, compact = false }: GalleryAccessProps) {
             onChange={(event) => setAccessCode(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Enter") void unlockGallery(); }}
           />
-          <button type="button" disabled={loading} onClick={() => void unlockGallery()}>{loading ? "Checking" : "Unlock"}</button>
+          <button type="button" disabled={loading} onClick={() => void unlockGallery()}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <KeyRound aria-hidden="true" />}{loading ? "Checking" : "Unlock"}</button>
         </div>
         <p id={compact ? "event-code-note" : "event-code-note-page"}>{message}</p>
       </div>
@@ -198,7 +215,14 @@ export function GalleryAccess({ config, compact = false }: GalleryAccessProps) {
               <label key={key}><span>{key}</span><select value={filters[key]} onChange={(event) => setFilters((current) => ({ ...current, [key]: event.target.value }))}><option value="">All {key}</option>{filterOptions[key].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
             ))}
           </div>
-          <div className="gallery-toolbar"><span>{filteredPhotos.length} visible / {selected.size} selected</span><button type="button" onClick={() => void downloadSelected()}>Download selected</button></div>
+          <div className="gallery-toolbar">
+            <span><Filter aria-hidden="true" /> {filteredPhotos.length} visible / {selected.size} selected</span>
+            <div>
+              <button type="button" onClick={() => setSelected(new Set(filteredPhotos.map((photo) => photo.id)))}><CheckCircle2 aria-hidden="true" /> Select all</button>
+              <button type="button" onClick={() => void shareGallery()}><Share2 aria-hidden="true" /> Share</button>
+              <button className="toolbar-primary" type="button" disabled={!selected.size} onClick={() => void downloadSelected()}><Download aria-hidden="true" /> Download selected</button>
+            </div>
+          </div>
           <div className="photo-grid" aria-label="Unlocked gallery photos">
             {filteredPhotos.map((photo) => (
               <figure className={selected.has(photo.id) ? "photo-card selected" : "photo-card"} key={photo.id}>

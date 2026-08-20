@@ -246,6 +246,14 @@ export async function writeDocument(
   );
 }
 
+export async function deleteDocument(path: string, idToken: string) {
+  return firestoreFetch(
+    path,
+    { method: "DELETE" },
+    idToken,
+  );
+}
+
 export function firebaseErrorResponse(error: unknown) {
   const status = error instanceof FirebaseRestError ? error.status : 500;
   const message = error instanceof Error ? error.message : "Unexpected server error.";

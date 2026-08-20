@@ -1,5 +1,7 @@
 import {
+  deleteDocument,
   firebaseErrorResponse,
+  getDocument,
   listDocuments,
   writeDocument,
 } from "@/lib/firestore-rest";
@@ -21,10 +23,47 @@ function requireToken(request: Request) {
   return token;
 }
 
+function cleanId(value: unknown) {
+  const id = cleanText(value, 160);
+  return /^[a-zA-Z0-9_-]+$/.test(id) ? id : "";
+}
+
+async function deleteStorageObject(storagePath: string, token: string) {
+  if (!storagePath) return;
+
+  const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim();
+  const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim();
+  if (!storageBucket) throw new Error("Firebase Storage bucket is missing from this deployment.");
+
+  const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(storageBucket)}/o/${encodeURIComponent(storagePath)}`;
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      authorization: `Firebase ${token}`,
+      ...(appId ? { "x-firebase-gmpid": appId } : {}),
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (response.ok || response.status === 404) return;
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: { message?: string };
+  };
+  throw new Error(payload.error?.message || `Storage delete returned HTTP ${response.status}.`);
+}
+
 export async function GET(request: Request) {
   try {
-    const galleries = await listDocuments("galleries", requireToken(request));
-    return Response.json({ galleries });
+    const token = requireToken(request);
+    const galleries = await listDocuments("galleries", token);
+    const galleriesWithPhotos = await Promise.all(
+      galleries.map(async (gallery) => ({
+        ...gallery,
+        photos: await listDocuments(`galleries/${gallery.id}/photos`, token),
+      })),
+    );
+    return Response.json({ galleries: galleriesWithPhotos });
   } catch (error) {
     return firebaseErrorResponse(error);
   }
@@ -147,6 +186,58 @@ export async function POST(request: Request) {
         token,
       );
 
+      return Response.json({ ok: true, heroImages });
+    }
+
+    if (action === "deletePhoto") {
+      const galleryId = cleanId(body.galleryId);
+      const photoId = cleanId(body.photoId);
+      if (!galleryId || !photoId) {
+        return Response.json({ error: "Photo reference is invalid." }, { status: 400 });
+      }
+
+      const photo = await getDocument(`galleries/${galleryId}/photos/${photoId}`, token);
+      if (!photo) return Response.json({ ok: true });
+
+      await deleteStorageObject(cleanText(photo.storagePath, 500), token);
+      await deleteDocument(`galleries/${galleryId}/photos/${photoId}`, token);
+      return Response.json({ ok: true });
+    }
+
+    if (action === "deleteGallery") {
+      const galleryId = cleanId(body.galleryId);
+      if (!galleryId) {
+        return Response.json({ error: "Gallery reference is invalid." }, { status: 400 });
+      }
+
+      const photos = await listDocuments(`galleries/${galleryId}/photos`, token);
+      for (const photo of photos) {
+        await deleteStorageObject(cleanText(photo.storagePath, 500), token);
+        await deleteDocument(`galleries/${galleryId}/photos/${photo.id}`, token);
+      }
+      await deleteDocument(`galleries/${galleryId}`, token);
+      return Response.json({ ok: true, deletedPhotos: photos.length });
+    }
+
+    if (action === "deleteHero") {
+      const storagePath = cleanText(body.storagePath, 500);
+      const heroImages = Array.isArray(body.heroImages)
+        ? body.heroImages
+            .filter((item) => item && typeof item === "object")
+            .slice(0, 5)
+            .map((item) => {
+              const image = item as Record<string, unknown>;
+              return {
+                url: cleanText(image.url, 3000),
+                storagePath: cleanText(image.storagePath, 500),
+                alt: cleanText(image.alt, 260),
+              };
+            })
+            .filter((item) => item.url)
+        : [];
+
+      await deleteStorageObject(storagePath, token);
+      await writeDocument("siteConfig/home", { heroImages, updatedAt: now }, token);
       return Response.json({ ok: true, heroImages });
     }
 

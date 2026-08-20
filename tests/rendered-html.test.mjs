@@ -34,7 +34,7 @@ test("renders the Madan landing page", async () => {
   const html = await render("/");
 
   assert.match(html, /Madan Shrestha/);
-  assert.match(html, /Private gallery access/);
+  assert.match(html, /Private gallery/);
 });
 
 test("marks private gallery route as noindex", async () => {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { GalleryAccess } from "@/components/gallery-access";
 import { getFirebaseConfigFromEnv } from "@/lib/firebase-config";
@@ -22,17 +23,16 @@ export default function GalleryPage() {
     <main className="subpage-shell">
       <header className="subpage-header">
         <BrandLogo className="light" />
-        <Link className="button button-dark" href="/admin">
-          Admin upload
-        </Link>
+        <div className="subpage-nav"><Link href="/"><ArrowLeft aria-hidden="true" /> Portfolio</Link><Link className="button button-dark" href="/admin"><ShieldCheck aria-hidden="true" /> Admin</Link></div>
       </header>
 
       <section className="subpage-hero">
-        <p className="eyebrow">Private gallery</p>
-        <h1>Unlock event photos with your code.</h1>
+        <span className="section-icon"><LockKeyhole aria-hidden="true" /></span>
+        <p className="eyebrow">Private delivery</p>
+        <h1>Your event, kept between us.</h1>
         <p>
-          Enter the access code shared by Madan to view, filter, select, and
-          download photos from a private event gallery.
+          Enter the 24-hour access code shared by Madan. View the full set,
+          filter it, select your photographs, and download directly.
         </p>
       </section>
 

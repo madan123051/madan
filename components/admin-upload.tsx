@@ -3,6 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import NextImage from "next/image";
 import {
+  ArrowUpRight,
+  Check,
+  Copy,
+  ImagePlus,
+  Images,
+  KeyRound,
+  LayoutDashboard,
+  Link2,
+  LoaderCircle,
+  LogIn,
+  LogOut,
+  MonitorUp,
+  Share2,
+  Trash2,
+  UploadCloud,
+} from "lucide-react";
+import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
@@ -12,7 +29,18 @@ import { enableFirebaseAnalytics, getFirebaseServices } from "@/lib/firebase-cli
 import type { FirebaseBrowserConfig } from "@/lib/firebase-config";
 
 type AdminUploadProps = { config: FirebaseBrowserConfig | null };
-type AdminTab = "gallery" | "access" | "hero";
+type AdminTab = "gallery" | "library" | "access" | "hero";
+
+type AdminPhoto = {
+  id: string;
+  url: string;
+  storagePath?: string;
+  filename?: string;
+  originalFilename?: string;
+  title?: string;
+  size?: number;
+  createdAt?: string;
+};
 
 type GalleryOption = {
   id: string;
@@ -21,6 +49,7 @@ type GalleryOption = {
   eventDate?: string;
   year?: string;
   month?: string;
+  photos?: AdminPhoto[];
 };
 
 type HeroImage = { url: string; storagePath: string; alt: string };
@@ -257,6 +286,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
   const [message, setMessage] = useState(config ? "Sign in to manage galleries." : "Firebase env is missing from this deployment.");
   const [busy, setBusy] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [deletingId, setDeletingId] = useState("");
 
   useEffect(() => { void enableFirebaseAnalytics(config); }, [config]);
 
@@ -444,6 +474,71 @@ export function AdminUpload({ config }: AdminUploadProps) {
     }
   }
 
+  async function shareGalleryLink() {
+    if (!shareLink) return setMessage("Save the code before sharing its link.");
+    const gallery = selectedGallery();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: gallery?.title || "Madan Wilds Aura private gallery",
+          text: `Private gallery access code: ${accessCode}`,
+          url: shareLink,
+        });
+        setMessage("Gallery link shared.");
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+    await copyShareLink();
+  }
+
+  async function deletePhoto(gallery: GalleryOption, photo: AdminPhoto) {
+    if (!user) return;
+    const confirmed = window.confirm(`Delete ${photo.title || photo.originalFilename || "this photo"} permanently?`);
+    if (!confirmed) return;
+
+    const itemId = `${gallery.id}/${photo.id}`;
+    setDeletingId(itemId);
+    setMessage("Deleting photo from Firebase...");
+    try {
+      await adminRequest(user, {
+        method: "POST",
+        body: JSON.stringify({ action: "deletePhoto", galleryId: gallery.id, photoId: photo.id }),
+      });
+      await loadDashboard(user);
+      setMessage("Photo permanently deleted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete photo.");
+    } finally {
+      setDeletingId("");
+    }
+  }
+
+  async function deleteGallery(gallery: GalleryOption) {
+    if (!user) return;
+    const count = gallery.photos?.length ?? 0;
+    const confirmed = window.confirm(
+      `Delete “${gallery.title}” and all ${count} photo${count === 1 ? "" : "s"} permanently? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(gallery.id);
+    setMessage("Deleting gallery and stored photos...");
+    try {
+      await adminRequest(user, {
+        method: "POST",
+        body: JSON.stringify({ action: "deleteGallery", galleryId: gallery.id }),
+      });
+      await loadDashboard(user);
+      setMessage(`“${gallery.title}” deleted.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete gallery.");
+    } finally {
+      setDeletingId("");
+    }
+  }
+
   async function handleHeroUpload() {
     if (!services || !user || !config) return setMessage("Sign in before uploading hero images.");
     if (!heroFiles.length) return setMessage("Choose at least one hero image.");
@@ -481,12 +576,14 @@ export function AdminUpload({ config }: AdminUploadProps) {
 
   async function removeHero(index: number) {
     if (!user) return;
+    if (!window.confirm("Remove this hero image permanently?")) return;
+    const removedImage = heroImages[index];
     const nextImages = heroImages.filter((_, itemIndex) => itemIndex !== index);
     setBusy(true);
     try {
       const payload = await adminRequest<{ heroImages: HeroImage[] }>(user, {
         method: "POST",
-        body: JSON.stringify({ action: "saveHero", heroImages: nextImages }),
+        body: JSON.stringify({ action: "deleteHero", storagePath: removedImage.storagePath, heroImages: nextImages }),
       });
       setHeroImages(payload.heroImages);
       setMessage("Hero image removed from rotation.");
@@ -502,61 +599,103 @@ export function AdminUpload({ config }: AdminUploadProps) {
   return (
     <section className="admin-dashboard">
       <aside className="admin-sidebar">
-        <div><p className="eyebrow">Studio control</p><h1>Madan Admin</h1><p>Galleries, private access, and landing visuals in one place.</p></div>
+        <div className="admin-sidebar-intro">
+          <span className="admin-sidebar-icon"><LayoutDashboard aria-hidden="true" /></span>
+          <p className="eyebrow">Studio control</p>
+          <h1>Madan Admin</h1>
+          <p>Upload, organize, deliver, and curate every photograph from one private workspace.</p>
+        </div>
         {user ? (
           <nav className="admin-tabs" aria-label="Admin sections">
-            <button className={tab === "gallery" ? "active" : ""} type="button" onClick={() => setTab("gallery")}><span>01</span> Gallery upload</button>
-            <button className={tab === "access" ? "active" : ""} type="button" onClick={() => setTab("access")}><span>02</span> 24-hour access</button>
-            <button className={tab === "hero" ? "active" : ""} type="button" onClick={() => setTab("hero")}><span>03</span> Hero rotation</button>
+            <button className={tab === "gallery" ? "active" : ""} type="button" onClick={() => setTab("gallery")}><UploadCloud aria-hidden="true" /><span><small>01</small> Upload</span></button>
+            <button className={tab === "library" ? "active" : ""} type="button" onClick={() => setTab("library")}><Images aria-hidden="true" /><span><small>02</small> Library</span></button>
+            <button className={tab === "access" ? "active" : ""} type="button" onClick={() => setTab("access")}><KeyRound aria-hidden="true" /><span><small>03</small> 24-hour access</span></button>
+            <button className={tab === "hero" ? "active" : ""} type="button" onClick={() => setTab("hero")}><MonitorUp aria-hidden="true" /><span><small>04</small> Hero rotation</span></button>
           </nav>
         ) : null}
-        <div className="admin-account"><span>{user ? user.email : "Admin sign in required"}</span>{user ? <button type="button" onClick={() => services && void signOut(services.auth)}>Sign out</button> : null}</div>
+        <div className="admin-account">
+          <span>{user ? user.email : "Admin sign in required"}</span>
+          {user ? <button type="button" onClick={() => services && void signOut(services.auth)}><LogOut aria-hidden="true" /> Sign out</button> : null}
+        </div>
       </aside>
 
       <div className="admin-workspace">
         {!user ? (
           <form className="admin-login" onSubmit={(event) => void handleLogin(event)}>
+            <span className="section-icon"><LogIn aria-hidden="true" /></span>
             <p className="eyebrow">Secure access</p><h2>Sign in to your studio.</h2>
             <label><span>Email</span><input autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
             <label><span>Password</span><input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
-            <button type="submit" disabled={busy}>{busy ? "Signing in..." : "Sign in"}</button>
+            <button type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <LogIn aria-hidden="true" />}{busy ? "Signing in..." : "Sign in"}</button>
           </form>
         ) : null}
 
         {user && tab === "gallery" ? (
           <div className="admin-section">
-            <header><p className="eyebrow">Bulk upload</p><h2>Create a gallery, then add every photo together.</h2><span>No access code is needed while uploading.</span></header>
+            <header><span className="section-icon"><UploadCloud aria-hidden="true" /></span><p className="eyebrow">Bulk upload</p><h2>Create once. Upload the full event together.</h2><span>Photos are compressed to WebP, kept below 10MB, and stamped before upload. No access code is needed here.</span></header>
             <form className="admin-form-modern" onSubmit={(event) => void handleGalleryUpload(event)}>
               <label className="field-wide"><span>Event title</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Tokyo portrait session" required /></label>
               <label><span>Event date</span><input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} /></label>
               <label><span>Country</span><input value={country} onChange={(event) => setCountry(event.target.value)} placeholder="Japan" /></label>
-              <label className="upload-drop field-wide"><span>Photos</span><strong>{files.length ? `${files.length} photos selected` : "Choose photos in bulk"}</strong><small>Converted to WebP under 10MB with a white copyright strip.</small><input key={fileInputKey} accept="image/*" multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} required /></label>
-              <button className="admin-primary field-wide" type="submit" disabled={busy}>{busy ? "Uploading gallery..." : `Upload ${files.length || ""} photo${files.length === 1 ? "" : "s"}`}</button>
+              <label className="upload-drop field-wide"><ImagePlus aria-hidden="true" /><span>Photos</span><strong>{files.length ? `${files.length} photos selected` : "Choose photos in bulk"}</strong><small>JPG, PNG, HEIC or WebP. Every output receives the white copyright strip.</small><input key={fileInputKey} accept="image/*" multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} required /></label>
+              <button className="admin-primary field-wide" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <UploadCloud aria-hidden="true" />}{busy ? "Uploading gallery..." : `Upload ${files.length || ""} photo${files.length === 1 ? "" : "s"}`}</button>
             </form>
-            {queue.length ? <div className="upload-queue" aria-label="Upload progress">{queue.map((item) => <div key={item.id} className={item.status === "error" ? "error" : ""}><span>{item.name}</span><strong>{item.status}</strong></div>)}</div> : null}
+            {queue.length ? <div className="upload-queue" aria-label="Upload progress">{queue.map((item) => <div key={item.id} className={item.status === "error" ? "error" : ""}><span>{item.name}</span><strong>{item.status === "done" ? <Check aria-hidden="true" /> : null}{item.status}</strong></div>)}</div> : null}
+          </div>
+        ) : null}
+
+        {user && tab === "library" ? (
+          <div className="admin-section admin-library-section">
+            <header><span className="section-icon"><Images aria-hidden="true" /></span><p className="eyebrow">Photo library</p><h2>Every uploaded gallery, ready to manage.</h2><span>{galleries.length} galler{galleries.length === 1 ? "y" : "ies"} and {galleries.reduce((total, gallery) => total + (gallery.photos?.length ?? 0), 0)} stored photos.</span></header>
+            {galleries.length ? (
+              <div className="gallery-library">
+                {galleries.map((gallery) => (
+                  <article className="library-gallery" key={gallery.id}>
+                    <div className="library-gallery-head">
+                      <div><span>{gallery.eventDate || "Undated event"}{gallery.country ? ` / ${gallery.country}` : ""}</span><h3>{gallery.title}</h3><p>{gallery.photos?.length ?? 0} photo{gallery.photos?.length === 1 ? "" : "s"}</p></div>
+                      <div className="library-gallery-actions">
+                        <button type="button" onClick={() => { setSelectedGalleryId(gallery.id); setTab("access"); }}><Link2 aria-hidden="true" /> Create access</button>
+                        <button className="danger-button" type="button" disabled={Boolean(deletingId)} onClick={() => void deleteGallery(gallery)}>{deletingId === gallery.id ? <LoaderCircle className="spin" aria-hidden="true" /> : <Trash2 aria-hidden="true" />} Delete gallery</button>
+                      </div>
+                    </div>
+                    {gallery.photos?.length ? (
+                      <div className="admin-photo-grid">
+                        {gallery.photos.map((photo) => (
+                          <figure key={photo.id}>
+                            <NextImage src={photo.url} alt={photo.title || photo.filename || "Uploaded gallery photo"} width={640} height={480} sizes="(max-width: 720px) 50vw, 240px" unoptimized />
+                            <figcaption><strong>{photo.title || photo.originalFilename || "Untitled photo"}</strong><span>{photo.size ? `${(photo.size / 1024 / 1024).toFixed(1)} MB WebP` : "WebP"}</span></figcaption>
+                            <button className="photo-delete" aria-label={`Delete ${photo.title || photo.filename || "photo"}`} title="Delete photo" type="button" disabled={Boolean(deletingId)} onClick={() => void deletePhoto(gallery, photo)}>{deletingId === `${gallery.id}/${photo.id}` ? <LoaderCircle className="spin" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}</button>
+                          </figure>
+                        ))}
+                      </div>
+                    ) : <div className="library-empty"><Images aria-hidden="true" /><span>This gallery has no uploaded photos yet.</span></div>}
+                  </article>
+                ))}
+              </div>
+            ) : <div className="library-empty large"><Images aria-hidden="true" /><strong>Your library is ready.</strong><span>Upload your first gallery and it will appear here.</span><button type="button" onClick={() => setTab("gallery")}>Start upload <ArrowUpRight aria-hidden="true" /></button></div>}
           </div>
         ) : null}
 
         {user && tab === "access" ? (
           <div className="admin-section">
-            <header><p className="eyebrow">Client delivery</p><h2>Create access only when the gallery is ready.</h2><span>Every saved code expires automatically after 24 hours.</span></header>
+            <header><span className="section-icon"><KeyRound aria-hidden="true" /></span><p className="eyebrow">Client delivery</p><h2>Create access only when the gallery is ready.</h2><span>Every saved code expires automatically after 24 hours. Uploading never requires a code.</span></header>
             <div className="access-builder">
               <label><span>Choose gallery</span><select value={selectedGalleryId} onChange={(event) => { setSelectedGalleryId(event.target.value); setAccessCode(""); setShareLink(""); setExpiresAt(""); }}><option value="">Select a gallery</option>{galleries.map((gallery) => <option key={gallery.id} value={gallery.id}>{gallery.title}{gallery.eventDate ? ` - ${gallery.eventDate}` : ""}</option>)}</select></label>
-              <div className="code-display"><span>Private code</span><strong>{accessCode || "Generate when ready"}</strong></div>
-              <div className="admin-actions"><button type="button" onClick={handleGenerateCode} disabled={!selectedGalleryId || busy}>Generate new code</button><button className="admin-primary" type="button" onClick={() => void handleSaveCode()} disabled={!accessCode || busy}>Activate for 24 hours</button><button type="button" onClick={() => void copyShareLink()} disabled={!shareLink}>Copy link</button></div>
-              {shareLink ? <div className="share-result"><strong>Share link</strong><span>{shareLink}</span>{expiresAt ? <small>Expires {new Date(expiresAt).toLocaleString()}</small> : null}</div> : null}
+              <div className="code-display"><KeyRound aria-hidden="true" /><span>Private code</span><strong>{accessCode || "Generate when ready"}</strong></div>
+              <div className="admin-actions"><button type="button" onClick={handleGenerateCode} disabled={!selectedGalleryId || busy}><KeyRound aria-hidden="true" /> Generate code</button><button className="admin-primary" type="button" onClick={() => void handleSaveCode()} disabled={!accessCode || busy}><Check aria-hidden="true" /> Activate 24 hours</button><button type="button" onClick={() => void copyShareLink()} disabled={!shareLink}><Copy aria-hidden="true" /> Copy link</button><button type="button" onClick={() => void shareGalleryLink()} disabled={!shareLink}><Share2 aria-hidden="true" /> Share</button></div>
+              {shareLink ? <div className="share-result"><div><strong>Active share link</strong><span>{shareLink}</span></div>{expiresAt ? <small>Expires {new Date(expiresAt).toLocaleString()}</small> : null}</div> : null}
             </div>
           </div>
         ) : null}
 
         {user && tab === "hero" ? (
           <div className="admin-section">
-            <header><p className="eyebrow">Landing page</p><h2>High-resolution rotating hero images.</h2><span>Keep up to 5 images. They rotate automatically on the homepage.</span></header>
+            <header><span className="section-icon"><MonitorUp aria-hidden="true" /></span><p className="eyebrow">Landing page</p><h2>Direct the first impression.</h2><span>Keep up to 5 sharp images. The homepage rotates them automatically without blurring the original files.</span></header>
             <div className="hero-manager-grid">
-              {heroImages.map((image, index) => <figure key={image.storagePath || image.url}><NextImage src={image.url} alt={image.alt || `Hero image ${index + 1}`} width={720} height={450} sizes="(max-width: 620px) 100vw, 33vw" unoptimized /><figcaption><span>{index + 1}</span><button type="button" disabled={busy} onClick={() => void removeHero(index)}>Remove</button></figcaption></figure>)}
+              {heroImages.map((image, index) => <figure key={image.storagePath || image.url}><NextImage src={image.url} alt={image.alt || `Hero image ${index + 1}`} width={720} height={450} sizes="(max-width: 620px) 100vw, 33vw" unoptimized /><figcaption><span>Frame {String(index + 1).padStart(2, "0")}</span><button type="button" disabled={busy} onClick={() => void removeHero(index)}><Trash2 aria-hidden="true" /> Remove</button></figcaption></figure>)}
               {heroImages.length === 0 ? <div className="hero-empty">Current profile photo stays as fallback until hero images are saved.</div> : null}
             </div>
-            <div className="hero-upload-row"><label><span>Add hero images</span><input accept="image/*" multiple type="file" onChange={(event) => setHeroFiles(Array.from(event.target.files ?? []).slice(0, 5))} /></label><button className="admin-primary" type="button" disabled={busy || !heroFiles.length || heroImages.length + heroFiles.length > 5} onClick={() => void handleHeroUpload()}>{busy ? "Saving..." : `Add ${heroFiles.length || ""} image${heroFiles.length === 1 ? "" : "s"}`}</button></div>
+            <div className="hero-upload-row"><label><ImagePlus aria-hidden="true" /><span>Add hero images</span><input accept="image/*" multiple type="file" onChange={(event) => setHeroFiles(Array.from(event.target.files ?? []).slice(0, 5))} /></label><button className="admin-primary" type="button" disabled={busy || !heroFiles.length || heroImages.length + heroFiles.length > 5} onClick={() => void handleHeroUpload()}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <UploadCloud aria-hidden="true" />}{busy ? "Saving..." : `Add ${heroFiles.length || ""} image${heroFiles.length === 1 ? "" : "s"}`}</button></div>
           </div>
         ) : null}
 

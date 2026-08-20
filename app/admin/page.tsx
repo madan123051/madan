@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArrowLeft, Images } from "lucide-react";
 import { AdminUpload } from "@/components/admin-upload";
 import { BrandLogo } from "@/components/brand-logo";
 import { getFirebaseConfigFromEnv } from "@/lib/firebase-config";
@@ -22,9 +23,7 @@ export default function AdminPage() {
     <main className="subpage-shell admin-shell">
       <header className="subpage-header">
         <BrandLogo className="light" />
-        <Link className="button button-dark" href="/gallery">
-          Gallery access
-        </Link>
+        <div className="subpage-nav"><Link href="/"><ArrowLeft aria-hidden="true" /> Portfolio</Link><Link className="button button-dark" href="/gallery"><Images aria-hidden="true" /> Gallery access</Link></div>
       </header>
 
       <AdminUpload config={firebaseConfig} />
