@@ -31,6 +31,10 @@ export class FirebaseRestError extends Error {
 function firebaseEnv() {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim();
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.trim();
+  const databaseId =
+    process.env.FIREBASE_DATABASE_ID?.trim() ||
+    process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID?.trim() ||
+    "madan";
 
   if (!projectId || !apiKey) {
     throw new FirebaseRestError(
@@ -39,7 +43,7 @@ function firebaseEnv() {
     );
   }
 
-  return { projectId, apiKey };
+  return { projectId, apiKey, databaseId };
 }
 
 function encodeValue(value: unknown): FirestoreValue {
@@ -113,8 +117,8 @@ function documentId(document: FirestoreDocument) {
 }
 
 function friendlyFirebaseMessage(message: string) {
-  if (message.includes("database (default) does not exist")) {
-    return "Firestore database is not created yet. Open Firebase Console, choose Firestore Database, click Create database, then publish the provided rules.";
+  if (/database .* does not exist/i.test(message)) {
+    return "The configured Firestore database could not be found. Confirm FIREBASE_DATABASE_ID matches the database name shown in Firebase Console.";
   }
 
   if (message.toLowerCase().includes("permission denied")) {
@@ -129,7 +133,7 @@ async function firestoreFetch(
   init: RequestInit = {},
   idToken?: string,
 ) {
-  const { projectId, apiKey } = firebaseEnv();
+  const { projectId, apiKey, databaseId } = firebaseEnv();
   const [pathOnly, rawQuery = ""] = documentPath.split("?", 2);
   const safePath = pathOnly
     .split("/")
@@ -137,7 +141,7 @@ async function firestoreFetch(
     .join("/");
   const query = new URLSearchParams(rawQuery);
   query.set("key", apiKey);
-  const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/${safePath}?${query.toString()}`;
+  const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(databaseId)}/documents/${safePath}?${query.toString()}`;
   const headers = new Headers(init.headers);
 
   headers.set("content-type", "application/json");
@@ -190,7 +194,7 @@ export async function getDocument(
     if (
       error instanceof FirebaseRestError &&
       error.status === 404 &&
-      !error.message.includes("Firestore database is not created")
+      !error.message.includes("configured Firestore database")
     ) {
       return null;
     }
