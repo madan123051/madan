@@ -32,7 +32,11 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
+FIREBASE_DATABASE_ID=madan
 ```
+
+`FIREBASE_DATABASE_ID` must match the database selector shown in Cloud
+Firestore. This project uses the named database `madan`, not `(default)`.
 
 ## Firestore Data Shape
 
