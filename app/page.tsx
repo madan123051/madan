@@ -4,8 +4,10 @@ import {
   Camera,
   Download,
   Images,
+  Instagram,
   LockKeyhole,
   MoveUpRight,
+  Youtube,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { GalleryAccess } from "@/components/gallery-access";
@@ -45,8 +47,8 @@ const workLinks = [
 const socialLinks = [
   { label: "Wilds Aura", href: "https://www.wildsaura.com/" },
   { label: "Luma", href: "https://luma.wildsaura.com/" },
-  { label: "Instagram", href: "#contact" },
-  { label: "YouTube", href: "#contact" },
+  { label: "Instagram", href: "https://www.instagram.com/madan__stha?igsh=YmV1MWJwam4zcmZs&utm_source=qr", icon: Instagram },
+  { label: "YouTube", href: "https://youtube.com/@natureframe_com?si=bOBwphHXggt4sH6E", icon: Youtube },
   { label: "Contact", href: "https://www.wildsaura.com/contact" },
   { label: "Admin", href: "/admin" },
 ];
@@ -127,7 +129,10 @@ export default function Home() {
 
       <footer id="contact" className="site-footer">
         <div><p className="eyebrow">Connect</p><h2>Let&apos;s make something worth remembering.</h2><p>Personal photography, wildlife stories, event galleries, and private downloads.</p></div>
-        <nav className="footer-links" aria-label="External links">{socialLinks.map((link) => <a key={link.label} href={link.href}>{link.label}<ArrowUpRight aria-hidden="true" /></a>)}</nav>
+        <nav className="footer-links" aria-label="External links">{socialLinks.map((link) => {
+          const Icon = link.icon;
+          return <a key={link.label} href={link.href} target={link.href.startsWith("http") ? "_blank" : undefined} rel={link.href.startsWith("http") ? "noreferrer" : undefined}>{Icon ? <Icon aria-hidden="true" /> : null}{link.label}<ArrowUpRight aria-hidden="true" /></a>;
+        })}</nav>
       </footer>
     </main>
   );

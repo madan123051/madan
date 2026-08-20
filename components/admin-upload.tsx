@@ -53,6 +53,7 @@ type GalleryOption = {
 };
 
 type HeroImage = { url: string; storagePath: string; alt: string };
+type PreviewImage = { slot: string; title: string; url: string; storagePath: string; alt: string };
 
 type QueueItem = {
   id: string;
@@ -73,6 +74,12 @@ type ProcessedPhoto = {
 const copyrightText = "Captured by madan.wildsaura.com";
 const maxUploadBytes = 10 * 1024 * 1024;
 const storageTimeoutMs = 120_000;
+const previewSlots = [
+  { slot: "event", title: "Event set" },
+  { slot: "portraits", title: "Portraits" },
+  { slot: "travel", title: "Travel" },
+  { slot: "wildlife", title: "Wildlife" },
+] as const;
 
 function slugify(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
@@ -282,6 +289,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
   const [shareLink, setShareLink] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [heroImages, setHeroImages] = useState<HeroImage[]>([]);
+  const [previewImages, setPreviewImages] = useState<PreviewImage[]>([]);
   const [heroFiles, setHeroFiles] = useState<File[]>([]);
   const [message, setMessage] = useState(config ? "Sign in to manage galleries." : "Firebase env is missing from this deployment.");
   const [busy, setBusy] = useState(false);
@@ -296,7 +304,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
         adminRequest<{ galleries: GalleryOption[] }>(nextUser),
         fetch("/api/hero", { cache: "no-store" }),
       ]);
-      const heroPayload = (await heroResponse.json().catch(() => ({}))) as { images?: HeroImage[]; error?: string };
+      const heroPayload = (await heroResponse.json().catch(() => ({}))) as { images?: HeroImage[]; previewImages?: PreviewImage[]; error?: string };
       if (!heroResponse.ok) throw new Error(heroPayload.error || "Could not load hero images.");
 
       const nextGalleries = [...galleryPayload.galleries].sort((a, b) =>
@@ -304,6 +312,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
       );
       setGalleries(nextGalleries);
       setHeroImages((heroPayload.images ?? []).slice(0, 5));
+      setPreviewImages((heroPayload.previewImages ?? []).slice(0, 4));
       setSelectedGalleryId((current) => current || nextGalleries[0]?.id || "");
       setMessage("Dashboard ready.");
     } catch (error) {
@@ -594,6 +603,80 @@ export function AdminUpload({ config }: AdminUploadProps) {
     }
   }
 
+  async function handlePreviewUpload(
+    event: React.ChangeEvent<HTMLInputElement>,
+    slot: string,
+    slotTitle: string,
+  ) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file || !user || !config) return;
+
+    const previous = previewImages.find((image) => image.slot === slot);
+    setBusy(true);
+    setMessage(`Preparing ${slotTitle} thumbnail...`);
+    try {
+      const processed = await processImage(file, false);
+      const path = `hero/preview-${slot}-${crypto.randomUUID()}-${processed.filename}`;
+      const url = await uploadAuthenticatedBlob(user, config, path, processed.blob, {
+        capturedBy: "madan.wildsaura.com",
+        originalName: processed.originalName,
+        previewSlot: slot,
+      });
+      const replacement: PreviewImage = {
+        slot,
+        title: slotTitle,
+        url,
+        storagePath: path,
+        alt: `${slotTitle} photography by Madan Shrestha`,
+      };
+      const draft = [...previewImages.filter((image) => image.slot !== slot), replacement];
+      const nextImages = previewSlots.flatMap((item) => {
+        const image = draft.find((candidate) => candidate.slot === item.slot);
+        return image ? [image] : [];
+      });
+      const payload = await adminRequest<{ previewImages: PreviewImage[] }>(user, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "savePreviews",
+          previewImages: nextImages,
+          removedStoragePath: previous?.storagePath || "",
+        }),
+      });
+      setPreviewImages(payload.previewImages);
+      setMessage(`${slotTitle} thumbnail is live.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save gallery thumbnail.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removePreview(slot: string, slotTitle: string) {
+    if (!user) return;
+    const current = previewImages.find((image) => image.slot === slot);
+    if (!current || !window.confirm(`Remove the ${slotTitle} thumbnail?`)) return;
+
+    setBusy(true);
+    setMessage(`Removing ${slotTitle} thumbnail...`);
+    try {
+      const payload = await adminRequest<{ previewImages: PreviewImage[] }>(user, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "savePreviews",
+          previewImages: previewImages.filter((image) => image.slot !== slot),
+          removedStoragePath: current.storagePath,
+        }),
+      });
+      setPreviewImages(payload.previewImages);
+      setMessage(`${slotTitle} thumbnail removed.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not remove gallery thumbnail.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!config) return <section className="admin-dashboard admin-empty">Firebase environment variables are missing.</section>;
 
   return (
@@ -696,6 +779,19 @@ export function AdminUpload({ config }: AdminUploadProps) {
               {heroImages.length === 0 ? <div className="hero-empty">Current profile photo stays as fallback until hero images are saved.</div> : null}
             </div>
             <div className="hero-upload-row"><label><ImagePlus aria-hidden="true" /><span>Add hero images</span><input accept="image/*" multiple type="file" onChange={(event) => setHeroFiles(Array.from(event.target.files ?? []).slice(0, 5))} /></label><button className="admin-primary" type="button" disabled={busy || !heroFiles.length || heroImages.length + heroFiles.length > 5} onClick={() => void handleHeroUpload()}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <UploadCloud aria-hidden="true" />}{busy ? "Saving..." : `Add ${heroFiles.length || ""} image${heroFiles.length === 1 ? "" : "s"}`}</button></div>
+
+            <div className="admin-subsection-heading"><p className="eyebrow">Gallery preview</p><h3>Choose the four public thumbnails.</h3><span>These images appear in the private gallery preview before a visitor enters an access code.</span></div>
+            <div className="preview-manager-grid">
+              {previewSlots.map((item) => {
+                const image = previewImages.find((candidate) => candidate.slot === item.slot);
+                return (
+                  <figure key={item.slot}>
+                    {image ? <NextImage src={image.url} alt={image.alt || item.title} width={720} height={480} sizes="(max-width: 620px) 100vw, 25vw" unoptimized /> : <div className="preview-manager-empty"><ImagePlus aria-hidden="true" /><span>No thumbnail</span></div>}
+                    <figcaption><div><strong>{item.title}</strong><span>{image ? "Live thumbnail" : "Upload an image"}</span></div><div><label><UploadCloud aria-hidden="true" />{image ? "Change" : "Upload"}<input accept="image/*" disabled={busy} type="file" onChange={(event) => void handlePreviewUpload(event, item.slot, item.title)} /></label>{image ? <button aria-label={`Remove ${item.title} thumbnail`} title="Remove thumbnail" type="button" disabled={busy} onClick={() => void removePreview(item.slot, item.title)}><Trash2 aria-hidden="true" /></button> : null}</div></figcaption>
+                  </figure>
+                );
+              })}
+            </div>
           </div>
         ) : null}
 

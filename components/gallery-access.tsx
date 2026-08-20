@@ -19,7 +19,20 @@ type GalleryPayload = {
   error?: string;
 };
 
+type PreviewImage = {
+  slot: string;
+  title?: string;
+  url: string;
+  alt?: string;
+};
+
 const fallbackFilters = ["Year", "Month", "Event", "Country"];
+const previewSlots = [
+  { slot: "event", title: "Event set" },
+  { slot: "portraits", title: "Portraits" },
+  { slot: "travel", title: "Travel" },
+  { slot: "wildlife", title: "Wildlife" },
+];
 
 function normalizeCode(value: string) {
   return value.trim().toUpperCase();
@@ -74,9 +87,25 @@ export function GalleryAccess({ config, compact = false }: GalleryAccessProps) {
     config ? "Enter a 24-hour event code to unlock a private gallery." : "Firebase env is missing from this deployment.",
   );
   const [loading, setLoading] = useState(false);
+  const [previewImages, setPreviewImages] = useState<PreviewImage[]>([]);
   const loadedCodeFromUrl = useRef(false);
 
   useEffect(() => { void enableFirebaseAnalytics(config); }, [config]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadPreviewImages() {
+      try {
+        const response = await fetch("/api/hero", { cache: "no-store", signal: controller.signal });
+        const payload = (await response.json()) as { previewImages?: PreviewImage[] };
+        if (response.ok) setPreviewImages((payload.previewImages ?? []).filter((image) => image.slot && image.url).slice(0, 4));
+      } catch {
+        // Empty placeholders remain available if the public site config is unavailable.
+      }
+    }
+    void loadPreviewImages();
+    return () => controller.abort();
+  }, []);
 
   const filteredPhotos = photos.filter((photo) =>
     (!filters.year || photo.year === filters.year) &&
@@ -235,7 +264,10 @@ export function GalleryAccess({ config, compact = false }: GalleryAccessProps) {
       ) : (
         <>
           <div className="filter-row" aria-label="Gallery filters">{fallbackFilters.map((filter) => <span key={filter}>{filter}</span>)}</div>
-          <div className="preview-grid" aria-label="Gallery layout preview">{["Event set", "Portraits", "Travel", "Wildlife"].map((item) => <figure key={item}><div /><figcaption><strong>{item}</strong><span>&copy; Captured by madan.wildsaura.com</span></figcaption></figure>)}</div>
+          <div className="preview-grid" aria-label="Gallery layout preview">{previewSlots.map((item) => {
+            const image = previewImages.find((preview) => preview.slot === item.slot);
+            return <figure key={item.slot}>{image ? <Image src={image.url} alt={image.alt || image.title || item.title} width={800} height={520} sizes="(max-width: 620px) 100vw, 50vw" unoptimized /> : <div />}<figcaption><strong>{image?.title || item.title}</strong><span>&copy; Captured by madan.wildsaura.com</span></figcaption></figure>;
+          })}</div>
         </>
       )}
     </div>

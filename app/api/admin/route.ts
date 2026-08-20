@@ -179,14 +179,58 @@ export async function POST(request: Request) {
             })
             .filter((item) => item.url)
         : [];
+      const currentConfig = await getDocument("siteConfig/home", token);
+      const previewImages = Array.isArray(currentConfig?.previewImages)
+        ? currentConfig.previewImages.slice(0, 4)
+        : [];
 
       await writeDocument(
         "siteConfig/home",
-        { heroImages, updatedAt: now },
+        { heroImages, previewImages, updatedAt: now },
         token,
       );
 
       return Response.json({ ok: true, heroImages });
+    }
+
+    if (action === "savePreviews") {
+      const previewImages = Array.isArray(body.previewImages)
+        ? body.previewImages
+            .filter((item) => item && typeof item === "object")
+            .slice(0, 4)
+            .map((item) => {
+              const image = item as Record<string, unknown>;
+              return {
+                slot: cleanText(image.slot, 40),
+                title: cleanText(image.title, 100),
+                url: cleanText(image.url, 3000),
+                storagePath: cleanText(image.storagePath, 500),
+                alt: cleanText(image.alt, 260),
+              };
+            })
+            .filter((item) => item.slot && item.url)
+        : [];
+      const currentConfig = await getDocument("siteConfig/home", token);
+      const heroImages = Array.isArray(currentConfig?.heroImages)
+        ? currentConfig.heroImages.slice(0, 5)
+        : [];
+
+      await writeDocument(
+        "siteConfig/home",
+        { heroImages, previewImages, updatedAt: now },
+        token,
+      );
+
+      const removedStoragePath = cleanText(body.removedStoragePath, 500);
+      if (removedStoragePath && !previewImages.some((image) => image.storagePath === removedStoragePath)) {
+        try {
+          await deleteStorageObject(removedStoragePath, token);
+        } catch (error) {
+          console.warn("[admin] replaced preview cleanup failed", error);
+        }
+      }
+
+      return Response.json({ ok: true, previewImages });
     }
 
     if (action === "deletePhoto") {
@@ -235,9 +279,13 @@ export async function POST(request: Request) {
             })
             .filter((item) => item.url)
         : [];
+      const currentConfig = await getDocument("siteConfig/home", token);
+      const previewImages = Array.isArray(currentConfig?.previewImages)
+        ? currentConfig.previewImages.slice(0, 4)
+        : [];
 
       await deleteStorageObject(storagePath, token);
-      await writeDocument("siteConfig/home", { heroImages, updatedAt: now }, token);
+      await writeDocument("siteConfig/home", { heroImages, previewImages, updatedAt: now }, token);
       return Response.json({ ok: true, heroImages });
     }
 

@@ -35,6 +35,9 @@ test("renders the Madan landing page", async () => {
 
   assert.match(html, /Madan Shrestha/);
   assert.match(html, /Private gallery/);
+  assert.match(html, /instagram\.com\/madan__stha/);
+  assert.match(html, /youtube\.com\/@natureframe_com/);
+  assert.match(html, /Event set/);
 });
 
 test("marks private gallery route as noindex", async () => {

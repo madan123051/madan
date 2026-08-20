@@ -209,6 +209,7 @@ svg { flex: 0 0 auto; }
 .preview-grid figure, .photo-card { background: var(--white); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; margin: 0; overflow: hidden; }
 .preview-grid figure > div { background: #dfe4db; min-height: 128px; position: relative; }
 .preview-grid figure > div::after { background: var(--sky); content: ""; height: 28px; inset: auto 16px 16px auto; position: absolute; width: 28px; }
+.preview-grid figure > img { aspect-ratio: 16 / 10; display: block; object-fit: cover; width: 100%; }
 .preview-grid figcaption, .photo-card figcaption { background: var(--white); display: grid; gap: 7px; padding: 12px; }
 .preview-grid figcaption strong, .photo-card figcaption strong { color: var(--ink); font-size: 0.9rem; }
 .preview-grid figcaption span, .photo-card figcaption span { color: var(--muted); font-size: 0.7rem; line-height: 1.4; }
@@ -348,6 +349,25 @@ svg { flex: 0 0 auto; }
 .hero-upload-row label { align-items: center; background: #f2f4ee; border: 1px dashed #aab2a3; border-radius: 6px; display: grid; gap: 7px; grid-template-columns: 24px 1fr; min-height: 78px; padding: 14px; }
 .hero-upload-row label > svg { color: var(--lime-dark); grid-row: 1 / 3; height: 20px; width: 20px; }
 .hero-upload-row input { max-width: 100%; }
+.admin-subsection-heading { border-top: 1px solid var(--line); margin-top: 42px; padding-top: 36px; }
+.admin-subsection-heading .eyebrow { margin-bottom: 9px; }
+.admin-subsection-heading h3 { font-size: 1.75rem; margin: 0; }
+.admin-subsection-heading > span { color: var(--muted); display: block; line-height: 1.55; margin-top: 10px; max-width: 660px; }
+.preview-manager-grid { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); margin-top: 24px; }
+.preview-manager-grid figure { background: var(--ink); border-radius: 6px; margin: 0; min-width: 0; overflow: hidden; }
+.preview-manager-grid figure > img, .preview-manager-empty { aspect-ratio: 16 / 10; display: flex; object-fit: cover; width: 100%; }
+.preview-manager-empty { align-items: center; background: #e9ede4; color: var(--muted); flex-direction: column; gap: 8px; justify-content: center; }
+.preview-manager-empty svg { height: 22px; width: 22px; }
+.preview-manager-empty span { font-size: 0.75rem; }
+.preview-manager-grid figcaption { align-items: center; color: var(--white); display: flex; gap: 10px; justify-content: space-between; min-height: 64px; padding: 9px 10px; }
+.preview-manager-grid figcaption > div:first-child { display: grid; gap: 4px; min-width: 0; }
+.preview-manager-grid figcaption strong { font-size: 0.78rem; }
+.preview-manager-grid figcaption span { color: rgba(255, 255, 255, 0.5); font-size: 0.65rem; }
+.preview-manager-grid figcaption > div:last-child { align-items: center; display: flex; gap: 5px; }
+.preview-manager-grid figcaption label, .preview-manager-grid figcaption button { align-items: center; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 5px; color: var(--white); cursor: pointer; display: inline-flex; font-size: 0.67rem; font-weight: 800; gap: 5px; height: 34px; justify-content: center; padding: 0 8px; position: relative; }
+.preview-manager-grid figcaption label svg, .preview-manager-grid figcaption button svg { height: 13px; width: 13px; }
+.preview-manager-grid figcaption label input { cursor: pointer; inset: 0; opacity: 0; position: absolute; width: 100%; }
+.preview-manager-grid figcaption button { padding: 0; width: 34px; }
 
 .admin-login { margin: 80px auto; max-width: 520px; }
 .admin-login label { margin-top: 18px; }
@@ -422,6 +442,7 @@ svg { flex: 0 0 auto; }
   .library-gallery-actions { justify-content: flex-start; }
   .admin-photo-grid { grid-template-columns: repeat(2, 1fr); }
   .hero-manager-grid { grid-template-columns: repeat(2, 1fr); }
+  .preview-manager-grid { grid-template-columns: repeat(2, 1fr); }
   .hero-upload-row { grid-template-columns: 1fr; }
   .share-result { align-items: flex-start; flex-direction: column; }
 }
@@ -442,7 +463,7 @@ svg { flex: 0 0 auto; }
   .subpage-hero h1 { font-size: 2.85rem; }
   .admin-tabs button > span small { display: none; }
   .admin-tabs button { padding: 0 10px; }
-  .admin-photo-grid, .hero-manager-grid { grid-template-columns: 1fr; }
+  .admin-photo-grid, .hero-manager-grid, .preview-manager-grid { grid-template-columns: 1fr; }
   .admin-actions { display: grid; }
   .library-gallery-actions { display: grid; width: 100%; }
 }
