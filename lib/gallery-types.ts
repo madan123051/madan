@@ -10,6 +10,8 @@ export type GalleryPhoto = {
   country: string;
   capturedBy: string;
   storagePath?: string;
+  mediaType?: "image" | "video";
+  contentType?: string;
 };
 
 export type GalleryRecord = {

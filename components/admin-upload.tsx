@@ -39,6 +39,8 @@ type AdminPhoto = {
   originalFilename?: string;
   title?: string;
   size?: number;
+  mediaType?: "image" | "video";
+  contentType?: string;
   createdAt?: string;
 };
 
@@ -69,10 +71,12 @@ type ProcessedPhoto = {
   originalName: string;
   title: string;
   width: number;
+  mediaType: "image" | "video";
+  contentType: string;
 };
 
 const copyrightText = "Captured by madan.wildsaura.com";
-const maxUploadBytes = 10 * 1024 * 1024;
+const maxUploadBytes = 200 * 1024 * 1024;
 const storageTimeoutMs = 120_000;
 const previewSlots = [
   { slot: "event", title: "Event set" },
@@ -184,7 +188,7 @@ async function processImage(file: File, addCopyrightStrip: boolean): Promise<Pro
       }
     }
 
-    if (!blob || blob.size > maxUploadBytes) throw new Error(`${file.name} is still above 10MB after compression.`);
+    if (!blob || blob.size > maxUploadBytes) throw new Error(`${file.name} is still above 200MB after compression.`);
 
     return {
       blob,
@@ -193,10 +197,32 @@ async function processImage(file: File, addCopyrightStrip: boolean): Promise<Pro
       originalName: file.name,
       title: file.name.replace(/\.[^.]+$/, ""),
       width,
+      mediaType: "image",
+      contentType: "image/webp",
     };
   } finally {
     release();
   }
+}
+
+async function processVideo(file: File): Promise<ProcessedPhoto> {
+  if (!file.type.startsWith("video/")) throw new Error(`${file.name} is not a video file.`);
+  if (file.size > maxUploadBytes) throw new Error(`${file.name} is larger than 200MB.`);
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const dimensions = await withTimeout(new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => resolve({ width: video.videoWidth, height: video.videoHeight });
+      video.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+      video.src = objectUrl;
+    }), 30_000, `Video metadata timed out for ${file.name}.`);
+    return { blob: file, filename: safeFileName(file.name), height: dimensions.height, originalName: file.name, title: file.name.replace(/\.[^.]+$/, ""), width: dimensions.width, mediaType: "video", contentType: file.type || "video/mp4" };
+  } finally { URL.revokeObjectURL(objectUrl); }
+}
+
+async function processMedia(file: File, addCopyrightStrip: boolean) {
+  return file.type.startsWith("video/") ? processVideo(file) : processImage(file, addCopyrightStrip);
 }
 
 async function adminRequest<T>(user: User, init: RequestInit = {}) {
@@ -215,19 +241,20 @@ async function uploadAuthenticatedBlob(
   config: FirebaseBrowserConfig,
   path: string,
   blob: Blob,
+  contentType: string,
   customMetadata: Record<string, string> = {},
 ) {
   const token = await user.getIdToken();
   const boundary = `firebase-${crypto.randomUUID()}`;
   const metadata = JSON.stringify({
     name: path,
-    contentType: "image/webp",
+    contentType,
     metadata: customMetadata,
   });
   const body = new Blob(
     [
       `--${boundary}\r\nContent-Type: application/json; charset=utf-8\r\n\r\n${metadata}\r\n`,
-      `--${boundary}\r\nContent-Type: image/webp\r\n\r\n`,
+      `--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
       blob,
       `\r\n--${boundary}--`,
     ],
@@ -388,7 +415,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
 
           try {
             updateQueue(item.id, { status: "processing" });
-            const processed = await processImage(file, true);
+            const processed = await processMedia(file, true);
             const path = `galleries/${galleryId}/${Date.now()}-${crypto.randomUUID()}-${processed.filename}`;
 
             updateQueue(item.id, { status: "uploading" });
@@ -397,6 +424,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
               firebaseConfig,
               path,
               processed.blob,
+              processed.contentType,
               {
                 capturedBy: "madan.wildsaura.com",
                 galleryId,
@@ -411,7 +439,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
                 action: "savePhoto", galleryId, url, downloadUrl: url, storagePath: path,
                 filename: processed.filename, originalFilename: processed.originalName, title: processed.title,
                 year, month, event: galleryTitle, country: countryValue, height: processed.height,
-                size: processed.blob.size, width: processed.width,
+                size: processed.blob.size, width: processed.width, mediaType: processed.mediaType, contentType: processed.contentType,
               }),
             });
             completed += 1;
@@ -431,7 +459,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
 
       if (failures.length) setMessage(`${completed} uploaded, ${failures.length} failed. ${failures[0]}`);
       else {
-        setMessage(`${completed} photos uploaded. Create a 24-hour code only when you are ready to share.`);
+        setMessage(`${completed} media files uploaded. Create a 24-hour code only when you are ready to share.`);
         setFiles([]);
         setFileInputKey((current) => current + 1);
       }
@@ -562,7 +590,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
         setMessage(`Preparing hero image ${index + 1} of ${heroFiles.length}...`);
         const processed = await processImage(file, false);
         const path = `hero/${Date.now()}-${crypto.randomUUID()}-${processed.filename}`;
-        const url = await uploadAuthenticatedBlob(user, firebaseConfig, path, processed.blob, {
+        const url = await uploadAuthenticatedBlob(user, firebaseConfig, path, processed.blob, processed.contentType, {
           capturedBy: "madan.wildsaura.com",
           originalName: processed.originalName,
         });
@@ -618,7 +646,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
     try {
       const processed = await processImage(file, false);
       const path = `hero/preview-${slot}-${crypto.randomUUID()}-${processed.filename}`;
-      const url = await uploadAuthenticatedBlob(user, config, path, processed.blob, {
+      const url = await uploadAuthenticatedBlob(user, config, path, processed.blob, processed.contentType, {
         capturedBy: "madan.wildsaura.com",
         originalName: processed.originalName,
         previewSlot: slot,
@@ -715,13 +743,13 @@ export function AdminUpload({ config }: AdminUploadProps) {
 
         {user && tab === "gallery" ? (
           <div className="admin-section">
-            <header><span className="section-icon"><UploadCloud aria-hidden="true" /></span><p className="eyebrow">Bulk upload</p><h2>Create once. Upload the full event together.</h2><span>Photos are compressed to WebP, kept below 10MB, and stamped before upload. No access code is needed here.</span></header>
+            <header><span className="section-icon"><UploadCloud aria-hidden="true" /></span><p className="eyebrow">Bulk upload</p><h2>Create once. Upload the full event together.</h2><span>Photos are compressed and stamped; videos stay in their original format. Files up to 200MB are supported.</span></header>
             <form className="admin-form-modern" onSubmit={(event) => void handleGalleryUpload(event)}>
               <label className="field-wide"><span>Event title</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Tokyo portrait session" required /></label>
               <label><span>Event date</span><input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} /></label>
               <label><span>Country</span><input value={country} onChange={(event) => setCountry(event.target.value)} placeholder="Japan" /></label>
-              <label className="upload-drop field-wide"><ImagePlus aria-hidden="true" /><span>Photos</span><strong>{files.length ? `${files.length} photos selected` : "Choose photos in bulk"}</strong><small>JPG, PNG, HEIC or WebP. Every output receives the white copyright strip.</small><input key={fileInputKey} accept="image/*" multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} required /></label>
-              <button className="admin-primary field-wide" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <UploadCloud aria-hidden="true" />}{busy ? "Uploading gallery..." : `Upload ${files.length || ""} photo${files.length === 1 ? "" : "s"}`}</button>
+              <label className="upload-drop field-wide"><ImagePlus aria-hidden="true" /><span>Photos and videos</span><strong>{files.length ? `${files.length} files selected` : "Choose media in bulk"}</strong><small>JPG, PNG, HEIC, WebP, MP4, MOV or WebM. Videos are uploaded without conversion.</small><input key={fileInputKey} accept="image/*,video/*" multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} required /></label>
+              <button className="admin-primary field-wide" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <UploadCloud aria-hidden="true" />}{busy ? "Uploading gallery..." : `Upload ${files.length || ""} file${files.length === 1 ? "" : "s"}`}</button>
             </form>
             {queue.length ? <div className="upload-queue" aria-label="Upload progress">{queue.map((item) => <div key={item.id} className={item.status === "error" ? "error" : ""}><span>{item.name}</span><strong>{item.status === "done" ? <Check aria-hidden="true" /> : null}{item.status}</strong></div>)}</div> : null}
           </div>
@@ -745,8 +773,8 @@ export function AdminUpload({ config }: AdminUploadProps) {
                       <div className="admin-photo-grid">
                         {gallery.photos.map((photo) => (
                           <figure key={photo.id}>
-                            <NextImage src={photo.url} alt={photo.title || photo.filename || "Uploaded gallery photo"} width={640} height={480} sizes="(max-width: 720px) 50vw, 240px" unoptimized />
-                            <figcaption><strong>{photo.title || photo.originalFilename || "Untitled photo"}</strong><span>{photo.size ? `${(photo.size / 1024 / 1024).toFixed(1)} MB WebP` : "WebP"}</span></figcaption>
+                            {photo.mediaType === "video" ? <video src={photo.url} controls preload="metadata" /> : <NextImage src={photo.url} alt={photo.title || photo.filename || "Uploaded gallery photo"} width={640} height={480} sizes="(max-width: 720px) 50vw, 240px" unoptimized />}
+                            <figcaption><strong>{photo.title || photo.originalFilename || "Untitled media"}</strong><span>{photo.size ? `${(photo.size / 1024 / 1024).toFixed(1)} MB ${photo.mediaType === "video" ? "Video" : "WebP"}` : photo.mediaType === "video" ? "Video" : "WebP"}</span></figcaption>
                             <button className="photo-delete" aria-label={`Delete ${photo.title || photo.filename || "photo"}`} title="Delete photo" type="button" disabled={Boolean(deletingId)} onClick={() => void deletePhoto(gallery, photo)}>{deletingId === `${gallery.id}/${photo.id}` ? <LoaderCircle className="spin" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}</button>
                           </figure>
                         ))}

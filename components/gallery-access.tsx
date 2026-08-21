@@ -73,6 +73,8 @@ function mapPhoto(data: Record<string, unknown> & { id: string }, gallery: Galle
     country: asText(data.country, gallery.country),
     capturedBy: asText(data.capturedBy, "Captured by madan.wildsaura.com"),
     storagePath: asText(data.storagePath),
+    mediaType: asText(data.mediaType, "image") === "video" ? "video" : "image",
+    contentType: asText(data.contentType),
   };
 }
 
@@ -145,7 +147,7 @@ export function GalleryAccess({ config, compact = false }: GalleryAccessProps) {
       setExpiresAt(payload.expiresAt);
       setSelected(new Set());
       setFilters({ year: "", month: "", event: "", country: "" });
-      setMessage(nextPhotos.length ? `${nextPhotos.length} photo${nextPhotos.length === 1 ? "" : "s"} unlocked.` : "Gallery unlocked, but no photos have been uploaded yet.");
+      setMessage(nextPhotos.length ? `${nextPhotos.length} media file${nextPhotos.length === 1 ? "" : "s"} unlocked.` : "Gallery unlocked, but no media files have been uploaded yet.");
     } catch (error) {
       setGallery(null);
       setPhotos([]);
@@ -253,7 +255,7 @@ export function GalleryAccess({ config, compact = false }: GalleryAccessProps) {
           <div className="photo-grid" aria-label="Unlocked gallery photos">
             {filteredPhotos.map((photo) => (
               <figure className={selected.has(photo.id) ? "photo-card selected" : "photo-card"} key={photo.id}>
-                <button type="button" onClick={() => togglePhoto(photo.id)}><Image src={photo.url} alt={photo.title} width={800} height={600} sizes="(max-width: 620px) 100vw, (max-width: 980px) 50vw, 33vw" unoptimized /><span>{selected.has(photo.id) ? "Selected" : "Select"}</span></button>
+                <button type="button" onClick={() => togglePhoto(photo.id)}>{photo.mediaType === "video" ? <video src={photo.url} controls preload="metadata" aria-label={photo.title} /> : <Image src={photo.url} alt={photo.title} width={800} height={600} sizes="(max-width: 620px) 100vw, (max-width: 980px) 50vw, 33vw" unoptimized />}<span>{selected.has(photo.id) ? "Selected" : "Select"}</span></button>
                 <figcaption><strong>{photo.title}</strong><span>&copy; {photo.capturedBy}</span></figcaption>
               </figure>
             ))}
