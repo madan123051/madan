@@ -4,7 +4,7 @@
 
 - Authentication: enable Email/Password sign-in for the admin account.
 - Firestore Database: stores gallery records and photo metadata.
-- Storage: stores uploaded photo files.
+- Storage: stores uploaded photo and video files.
 - Analytics: optional, uses `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID`.
 
 ## Required Console Setup
@@ -82,9 +82,9 @@ siteConfig/home
 ```
 
 Admin bulk uploads convert two selected images at a time before they reach
-Firebase Storage. Every gallery file is WebP, compressed below 10MB, and
-includes a white copyright strip. Gallery codes are created separately and
-expire 24 hours after activation. Up to five high-resolution WebP hero images
+Firebase Storage. Gallery images are WebP files with a white copyright strip;
+videos keep their original format and can be up to 200MB. Gallery codes are
+created separately and expire 24 hours after activation. Up to five high-resolution WebP hero images
 can be stored in the landing-page rotation.
 
 ## Firestore Rules
@@ -136,7 +136,7 @@ service cloud.firestore {
 ## Storage Rules
 
 Replace `help@wildsaura.com` with the same Firebase admin email. Uploads are
-limited to stamped WebP images under 10MB.
+allow stamped WebP images and videos up to 200MB.
 
 ```txt
 rules_version = '2';
@@ -151,8 +151,9 @@ service firebase.storage {
     match /galleries/{galleryId}/{fileName} {
       allow read: if true;
       allow create, update: if isAdmin()
-        && request.resource.size <= 10 * 1024 * 1024
-        && request.resource.contentType == "image/webp";
+        && request.resource.size <= 200 * 1024 * 1024
+        && (request.resource.contentType == "image/webp"
+          || request.resource.contentType.matches("video/.*"));
       allow delete: if isAdmin();
     }
 

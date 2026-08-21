@@ -297,7 +297,9 @@ async function uploadAuthenticatedBlob(
     throw new Error(
       response.status === 401
         ? `Firebase rejected the admin login token. Sign out, sign in again, and retry. ${detail}`
-        : detail,
+        : response.status === 403
+          ? `Firebase Storage denied this file. Publish firebase/storage.rules and make sure you are signed in with the configured admin email. ${detail}`
+          : detail,
     );
   }
 
