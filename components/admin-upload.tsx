@@ -61,6 +61,7 @@ type QueueItem = {
   id: string;
   name: string;
   status: "waiting" | "processing" | "uploading" | "saving" | "done" | "error";
+  progress: number;
   error?: string;
 };
 
@@ -243,6 +244,7 @@ async function uploadAuthenticatedBlob(
   blob: Blob,
   contentType: string,
   customMetadata: Record<string, string> = {},
+  onProgress?: (progress: number) => void,
 ) {
   const token = await user.getIdToken();
   const boundary = `firebase-${crypto.randomUUID()}`;
@@ -265,20 +267,27 @@ async function uploadAuthenticatedBlob(
   );
   endpoint.searchParams.set("name", path);
 
-  const response = await withTimeout(
-    fetch(endpoint, {
-      method: "POST",
-      headers: {
-        authorization: `Firebase ${token}`,
-        "content-type": `multipart/related; boundary=${boundary}`,
-        "x-firebase-gmpid": config.appId,
-        "x-goog-upload-protocol": "multipart",
-      },
-      body,
-    }),
+  const response = await withTimeout(new Promise<Response>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", endpoint);
+    xhr.responseType = "text";
+    xhr.setRequestHeader("authorization", `Firebase ${token}`);
+    xhr.setRequestHeader("content-type", `multipart/related; boundary=${boundary}`);
+    xhr.setRequestHeader("x-firebase-gmpid", config.appId);
+    xhr.setRequestHeader("x-goog-upload-protocol", "multipart");
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+    };
+    xhr.onload = () => resolve(new Response(xhr.responseText, { status: xhr.status, statusText: xhr.statusText }));
+    xhr.onerror = () => reject(new Error("Network error during storage upload."));
+    xhr.ontimeout = () => reject(new Error("Storage upload timed out."));
+    xhr.timeout = storageTimeoutMs;
+    xhr.send(body);
+  }),
     storageTimeoutMs,
     `Storage upload timed out for ${path.split("/").at(-1) ?? "image"}.`,
   );
+  onProgress?.(100);
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as {
@@ -391,7 +400,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
     const year = eventDate ? String(new Date(`${eventDate}T00:00:00`).getFullYear()) : "";
     const month = monthName(eventDate);
     const countryValue = country.trim();
-    const items = files.map((file, index) => ({ id: `${file.name}-${file.lastModified}-${index}`, name: file.name, status: "waiting" as const }));
+    const items = files.map((file, index) => ({ id: `${file.name}-${file.lastModified}-${index}`, name: file.name, status: "waiting" as const, progress: 0 }));
 
     setQueue(items);
     setBusy(true);
@@ -405,6 +414,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
 
       let cursor = 0;
       let completed = 0;
+      const progressById: Record<string, number> = {};
       const failures: string[] = [];
       const workers = Array.from({ length: Math.min(2, files.length) }, async () => {
         while (cursor < files.length) {
@@ -418,7 +428,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
             const processed = await processMedia(file, true);
             const path = `galleries/${galleryId}/${Date.now()}-${crypto.randomUUID()}-${processed.filename}`;
 
-            updateQueue(item.id, { status: "uploading" });
+            updateQueue(item.id, { status: "uploading", progress: 0 });
             const url = await uploadAuthenticatedBlob(
               user,
               firebaseConfig,
@@ -429,6 +439,12 @@ export function AdminUpload({ config }: AdminUploadProps) {
                 capturedBy: "madan.wildsaura.com",
                 galleryId,
                 originalName: processed.originalName,
+              },
+              (progress) => {
+                progressById[item.id] = progress;
+                updateQueue(item.id, { progress });
+                const overallProgress = Math.round(Object.values(progressById).reduce((sum, value) => sum + value, 0) / files.length);
+                setMessage(`Uploading ${completed} of ${files.length} files · ${overallProgress}% overall`);
               },
             );
 
@@ -443,8 +459,9 @@ export function AdminUpload({ config }: AdminUploadProps) {
               }),
             });
             completed += 1;
-            updateQueue(item.id, { status: "done" });
-            setMessage(`Uploaded ${completed} of ${files.length} photos.`);
+            progressById[item.id] = 100;
+            updateQueue(item.id, { status: "done", progress: 100 });
+            setMessage(`Uploaded ${completed} of ${files.length} files · ${Math.round(Object.values(progressById).reduce((sum, value) => sum + value, 0) / files.length)}% overall`);
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Upload failed.";
             failures.push(`${file.name}: ${errorMessage}`);
@@ -751,7 +768,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
               <label className="upload-drop field-wide"><ImagePlus aria-hidden="true" /><span>Photos and videos</span><strong>{files.length ? `${files.length} files selected` : "Choose media in bulk"}</strong><small>JPG, PNG, HEIC, WebP, MP4, MOV or WebM. Videos are uploaded without conversion.</small><input key={fileInputKey} accept="image/*,video/*" multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} required /></label>
               <button className="admin-primary field-wide" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <UploadCloud aria-hidden="true" />}{busy ? "Uploading gallery..." : `Upload ${files.length || ""} file${files.length === 1 ? "" : "s"}`}</button>
             </form>
-            {queue.length ? <div className="upload-queue" aria-label="Upload progress">{queue.map((item) => <div key={item.id} className={item.status === "error" ? "error" : ""}><span>{item.name}</span><strong>{item.status === "done" ? <Check aria-hidden="true" /> : null}{item.status}</strong></div>)}</div> : null}
+            {queue.length ? <div className="upload-queue" aria-label="Upload progress">{queue.map((item) => <div key={item.id} className={item.status === "error" ? "error" : ""}><span>{item.name}</span><strong>{item.status === "done" ? <Check aria-hidden="true" /> : null}{item.status}{item.status !== "error" ? ` · ${item.progress}%` : ""}</strong></div>)}</div> : null}
           </div>
         ) : null}
 
