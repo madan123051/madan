@@ -47,6 +47,7 @@ type AdminPhoto = {
 type GalleryOption = {
   id: string;
   title: string;
+  clientName?: string;
   country?: string;
   eventDate?: string;
   year?: string;
@@ -111,8 +112,10 @@ function randomCodeBlock() {
 
 function generateAccessCode(gallery?: GalleryOption) {
   const datePart = gallery?.eventDate?.replaceAll("-", "") || "GALLERY";
+  const clientPart = slugify(gallery?.clientName || "CLIENT").replaceAll("-", "").slice(0, 10).toUpperCase();
   const titlePart = slugify(gallery?.title || "event").replaceAll("-", "").slice(0, 10).toUpperCase();
-  return ["MADAN", datePart, titlePart || "PHOTO", randomCodeBlock()].join("-");
+  const locationPart = slugify(gallery?.country || "WORLD").replaceAll("-", "").slice(0, 8).toUpperCase();
+  return ["MADAN", clientPart || "CLIENT", titlePart || "EVENT", locationPart || "WORLD", datePart, randomCodeBlock()].join("-");
 }
 
 function withTimeout<T>(task: Promise<T>, timeoutMs: number, message: string) {
@@ -317,6 +320,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
   const [password, setPassword] = useState("");
   const [tab, setTab] = useState<AdminTab>("gallery");
   const [title, setTitle] = useState("");
+  const [clientName, setClientName] = useState("");
   const [country, setCountry] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -411,7 +415,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
     try {
       await adminRequest(user, {
         method: "POST",
-        body: JSON.stringify({ action: "saveGallery", galleryId, title: galleryTitle, country: countryValue, eventDate, year, month }),
+        body: JSON.stringify({ action: "saveGallery", galleryId, title: galleryTitle, clientName: clientName.trim(), country: countryValue, eventDate, year, month }),
       });
 
       let cursor = 0;
@@ -765,6 +769,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
             <header><span className="section-icon"><UploadCloud aria-hidden="true" /></span><p className="eyebrow">Bulk upload</p><h2>Create once. Upload the full event together.</h2><span>Photos are compressed and stamped; videos stay in their original format. Files up to 200MB are supported.</span></header>
             <form className="admin-form-modern" onSubmit={(event) => void handleGalleryUpload(event)}>
               <label className="field-wide"><span>Event title</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Tokyo portrait session" required /></label>
+              <label><span>Client / user name</span><input value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Aarav Sharma" /></label>
               <label><span>Event date</span><input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} /></label>
               <label><span>Country</span><input value={country} onChange={(event) => setCountry(event.target.value)} placeholder="Japan" /></label>
               <label className="upload-drop field-wide"><ImagePlus aria-hidden="true" /><span>Photos and videos</span><strong>{files.length ? `${files.length} files selected` : "Choose media in bulk"}</strong><small>JPG, PNG, HEIC, WebP, MP4, MOV or WebM. Videos are uploaded without conversion.</small><input key={fileInputKey} accept="image/*,video/*" multiple type="file" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} required /></label>
@@ -782,7 +787,7 @@ export function AdminUpload({ config }: AdminUploadProps) {
                 {galleries.map((gallery) => (
                   <article className="library-gallery" key={gallery.id}>
                     <div className="library-gallery-head">
-                      <div><span>{gallery.eventDate || "Undated event"}{gallery.country ? ` / ${gallery.country}` : ""}</span><h3>{gallery.title}</h3><p>{gallery.photos?.length ?? 0} photo{gallery.photos?.length === 1 ? "" : "s"}</p></div>
+                      <div><span>{gallery.eventDate || "Undated event"}{gallery.country ? ` / ${gallery.country}` : ""}</span><h3>{gallery.title}</h3><p>{gallery.clientName ? `${gallery.clientName} · ` : ""}{gallery.photos?.length ?? 0} media file{gallery.photos?.length === 1 ? "" : "s"}</p></div>
                       <div className="library-gallery-actions">
                         <button type="button" onClick={() => { setSelectedGalleryId(gallery.id); setTab("access"); }}><Link2 aria-hidden="true" /> Create access</button>
                         <button className="danger-button" type="button" disabled={Boolean(deletingId)} onClick={() => void deleteGallery(gallery)}>{deletingId === gallery.id ? <LoaderCircle className="spin" aria-hidden="true" /> : <Trash2 aria-hidden="true" />} Delete gallery</button>

@@ -88,6 +88,7 @@ export async function POST(request: Request) {
         `galleries/${galleryId}`,
         {
           title,
+          clientName: cleanText(body.clientName, 160),
           country: cleanText(body.country, 100),
           eventDate: cleanText(body.eventDate, 20),
           year: cleanText(body.year, 8),
